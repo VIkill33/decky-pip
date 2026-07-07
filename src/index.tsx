@@ -1,4 +1,3 @@
-import merge from 'lodash/merge'
 import { FaTv } from "react-icons/fa";
 import { StateManager } from "cotton-box";
 import { quickAccessMenuClasses } from "@decky/ui";
@@ -7,23 +6,78 @@ import { definePlugin, routerHook, } from "@decky/api";
 import { PipOuter } from "./pip";
 import { Settings } from "./settings";
 import { Position, ViewMode } from "./util";
-import { State, GlobalContext } from "./globalState";
+import { CustomPosition, State, GlobalContext, UrlEntry } from "./globalState";
+
+const defaultUrl = "https://netflix.com";
+
+const loadPersistedState = () => {
+    try {
+        return JSON.parse(localStorage.getItem('pip') ?? '{}') as Partial<State>;
+    } catch {
+        return {};
+    }
+};
+
+const isCustomPosition = (value: unknown): value is CustomPosition => {
+    const position = value as CustomPosition;
+    return typeof position?.x === "number" && typeof position?.y === "number";
+};
+
+const normalizeUrlEntries = (entries: unknown, currentUrl: string): UrlEntry[] => {
+    const normalized = Array.isArray(entries)
+        ? entries.reduce<UrlEntry[]>((result, entry) => {
+            if (typeof entry?.url !== "string" || entry.url.length === 0) {
+                return result;
+            }
+
+            if (result.some(({ url }) => url === entry.url)) {
+                return result;
+            }
+
+            result.push({
+                id: typeof entry.id === "string" && entry.id.length > 0
+                    ? entry.id
+                    : `url-${result.length}`,
+                url: entry.url,
+                note: typeof entry.note === "string" ? entry.note : ""
+            });
+
+            return result;
+        }, [])
+        : [];
+
+    if (!normalized.some(({ url }) => url === currentUrl)) {
+        normalized.unshift({
+            id: "current",
+            url: currentUrl,
+            note: ""
+        });
+    }
+
+    return normalized;
+};
 
 export default definePlugin(() => {
-    const state = new StateManager<State>(merge<Partial<State>, State, Partial<State>>(
-        {},
-        {
-            viewMode: ViewMode.Closed,
-            visible: true,
-            position: Position.TopRight,
-            margin: 30,
-            size: 1,
-            url: "https://netflix.com"
-        },
-        JSON.parse(localStorage.getItem('pip') ?? '{}')));
+    const persistedState = loadPersistedState();
+    const url = typeof persistedState.url === "string" && persistedState.url.length > 0
+        ? persistedState.url
+        : defaultUrl;
 
-    state.watch(({ position, margin, size, url }) =>
-        localStorage.setItem('pip', JSON.stringify({ position, margin, size, url })));
+    const state = new StateManager<State>({
+        viewMode: ViewMode.Closed,
+        visible: true,
+        position: persistedState.position ?? Position.TopRight,
+        customPosition: isCustomPosition(persistedState.customPosition)
+            ? persistedState.customPosition
+            : null,
+        margin: persistedState.margin ?? 30,
+        size: persistedState.size ?? 1,
+        url,
+        urlEntries: normalizeUrlEntries(persistedState.urlEntries, url),
+    });
+
+    state.watch(({ position, customPosition, margin, size, url, urlEntries }) =>
+        localStorage.setItem('pip', JSON.stringify({ position, customPosition, margin, size, url, urlEntries })));
 
     routerHook.addGlobalComponent("PictureInPicture", () => {
         return <GlobalContext.Provider value={state}>

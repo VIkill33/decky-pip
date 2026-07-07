@@ -11,7 +11,7 @@ cross-module responsibilities.
 `decky-pip` is a Decky Loader plugin that opens a Steam/Deck browser view as a
 picture-in-picture overlay while the user is in game mode. The plugin exposes a
 Quick Access Menu settings panel for changing the URL, view mode, picture
-position, picture size, and margin.
+position, picture size, margin, and saved URL list.
 
 The project is intentionally small. Most behavior is client-side TypeScript and
 React running inside the Decky frontend environment.
@@ -35,7 +35,7 @@ Decky loads plugin
   -> index renders Settings in the QAM
   -> Settings updates global state
   -> PipOuter observes global state
-  -> Pip creates/updates/destroys the BrowserView
+  -> Pip creates/updates/destroys the BrowserView and drag bar
 ```
 
 ## Module Map
@@ -47,6 +47,7 @@ Plugin entrypoint. Responsibilities:
 - Calls `definePlugin`.
 - Creates the shared `StateManager<State>`.
 - Merges default state with persisted `localStorage["pip"]` data.
+- Migrates older persisted single-URL state into the current saved URL list.
 - Persists selected settings back into `localStorage`.
 - Registers the global component through `routerHook.addGlobalComponent`.
 - Provides `Settings` as the Decky plugin panel content.
@@ -72,8 +73,9 @@ excluded from the persistence watcher.
 Quick Access Menu controls. Responsibilities:
 
 - Opens the PiP view when the settings panel mounts if it was closed.
-- Provides URL edit, expand toggle, position selector, size slider, margin
-  slider, and close button.
+- Provides URL edit/save, saved URL selector, saved URL add/remove actions,
+  expand toggle, position selector, continuous size slider, margin slider, and
+  close button.
 - Temporarily hides the BrowserView around some Decky modal/dropdown
   interactions so the overlay does not obscure Decky UI.
 
@@ -87,8 +89,12 @@ Core PiP runtime. Responsibilities:
 - Creates the Steam/Deck `BrowserView` via
   `Router.WindowStore.GamepadUIMainWindowInstance.CreateBrowserView("pip")`.
 - Loads the configured URL.
-- Applies visibility and bounds to the browser.
+- Applies visibility and bounds to the browser. In picture mode, the
+  BrowserView is inset below the drag bar so normal browser gestures are not
+  intercepted outside the bar.
 - Releases the BrowserView on React unmount.
+- Renders a fixed-position drag bar at the top of the PiP bounds in picture
+  mode. Touch/pointer drag on the bar updates `customPosition` in shared state.
 - Tracks Deck UI surfaces, including main navigation, QAM, and an estimated
   virtual keyboard area.
 - Intersects available rectangles and computes final overlay bounds for
@@ -121,6 +127,8 @@ Treat enum reordering as a compatibility change.
 Decky modal integration. Responsibilities:
 
 - `urlModal.tsx` renders the URL input modal and updates global state.
+- The URL modal edits both URL and note. Saving a URL upserts it into the saved
+  URL list and makes it current.
 - `modal.tsx` wraps modal components with the existing global state context.
 
 Keep modal-specific context bridging here.
@@ -143,10 +151,23 @@ Current state:
 interface State {
   viewMode: ViewMode;
   position: Position;
+  customPosition: CustomPosition | null;
   visible: boolean;
   margin: number;
   size: number;
   url: string;
+  urlEntries: UrlEntry[];
+}
+
+interface UrlEntry {
+  id: string;
+  url: string;
+  note: string;
+}
+
+interface CustomPosition {
+  x: number;
+  y: number;
 }
 ```
 
@@ -155,13 +176,20 @@ Default state is created in `src/index.tsx`:
 - `viewMode`: `ViewMode.Closed`
 - `visible`: `true`
 - `position`: `Position.TopRight`
+- `customPosition`: `null`
 - `margin`: `30`
 - `size`: `1`
 - `url`: `https://netflix.com`
+- `urlEntries`: contains the current/default URL when older persisted data does
+  not already include a list
 
-Only `position`, `margin`, `size`, and `url` are persisted to
-`localStorage["pip"]`. `viewMode` and `visible` are runtime state and should
-remain non-persistent unless the product behavior intentionally changes.
+`position`, `customPosition`, `margin`, `size`, `url`, and `urlEntries` are
+persisted to `localStorage["pip"]`. `viewMode` and `visible` are runtime state
+and should remain non-persistent unless the product behavior intentionally
+changes.
+
+`urlEntries` is the saved URL list. The current URL is still stored separately
+as `url` for fast lookup and backward compatibility with older stored data.
 
 ## Bounds Calculation
 
@@ -174,8 +202,15 @@ available area when Deck UI surfaces are visible:
 
 The available rectangles are intersected. Margins are then applied. In picture
 mode, the configured `Position` determines where the PiP rectangle is placed
-inside the remaining bounds. In expand mode, the overlay uses the available area
-after a fixed 30px margin.
+inside the remaining bounds. When `customPosition` is set, it overrides the
+preset `Position` and is clamped into the remaining bounds. Dragging the PiP in
+picture mode updates `customPosition`. Selecting a preset position clears
+`customPosition`.
+
+In expand mode, the overlay uses the available area after a fixed 30px margin.
+The drag bar is only rendered in picture mode while the BrowserView is visible.
+The BrowserView starts below the drag bar in picture mode, so page gestures
+outside the bar continue to reach the loaded site.
 
 ## External Integration Points
 
@@ -224,4 +259,3 @@ Recommended verification:
   changes, manually verify on the target Steam Deck or Decky environment.
 - Confirm persisted settings still load from older `localStorage["pip"]` data
   when state or enum values change.
-

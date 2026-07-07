@@ -8,9 +8,20 @@ import { useEffect, useState } from "react";
 import { modalWithState } from "./modal";
 import { useGlobalState } from "./globalState";
 
-export const UrlModal = (props: ModalRootProps) => {
-    const [{ url }, setGlobalState] = useGlobalState();
-    const [field, setField] = useState(url);
+const createUrlEntryId = () =>
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+interface UrlModalProps extends ModalRootProps {
+    mode?: "add" | "edit"
+}
+
+export const UrlModal = ({ mode = "edit", ...props }: UrlModalProps) => {
+    const [{ url, urlEntries }, setGlobalState] = useGlobalState();
+    const currentEntry = mode == "edit"
+        ? urlEntries.find(entry => entry.url === url)
+        : null;
+    const [field, setField] = useState(mode == "edit" ? url : "");
+    const [note, setNote] = useState(currentEntry?.note ?? "");
 
     useEffect(() => {
         setGlobalState(state => ({
@@ -26,12 +37,38 @@ export const UrlModal = (props: ModalRootProps) => {
 
     return <ConfirmModal
         {...props}
-        strTitle='Address'
+        strTitle={mode == "add" ? "Add Address" : "Address"}
         onOK={() => {
+            const nextUrl = field.trim();
+            const nextNote = note.trim();
+
+            if (nextUrl.length === 0) {
+                setGlobalState(state => ({
+                    ...state,
+                    visible: true
+                }));
+                return;
+            }
+
             setGlobalState(state => ({
                 ...state,
                 visible: true,
-                url: field
+                url: nextUrl,
+                urlEntries: state.urlEntries.some(entry => entry.url === nextUrl)
+                    ? state.urlEntries.map(entry => entry.url === nextUrl
+                        ? {
+                            ...entry,
+                            note: nextNote
+                        }
+                        : entry)
+                    : [
+                        ...state.urlEntries,
+                        {
+                            id: createUrlEntryId(),
+                            url: nextUrl,
+                            note: nextNote
+                        }
+                    ]
             }));
         }}
         onCancel={() => {
@@ -40,9 +77,20 @@ export const UrlModal = (props: ModalRootProps) => {
                 visible: true
             }))
         }}>
-        <TextField
-            value={field}
-            onChange={e => setField(e.target.value)} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+                <div>URL</div>
+                <TextField
+                    value={field}
+                    onChange={e => setField(e.target.value)} />
+            </div>
+            <div>
+                <div>Note</div>
+                <TextField
+                    value={note}
+                    onChange={e => setNote(e.target.value)} />
+            </div>
+        </div>
     </ConfirmModal>;
 }
 

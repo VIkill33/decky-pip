@@ -4,13 +4,26 @@ import { useContext, createContext } from 'react';
 import { Position, ViewMode } from './util';
 import { useStateValue } from 'cotton-box-react';
 
+export interface UrlEntry {
+    id: string
+    url: string
+    note: string
+}
+
+export interface CustomPosition {
+    x: number
+    y: number
+}
+
 export interface State {
     viewMode: ViewMode,
     position: Position
+    customPosition: CustomPosition | null
     visible: boolean
     margin: number
     size: number
     url: string
+    urlEntries: UrlEntry[]
 }
 
 export const GlobalContext = createContext(new StateManager<State>({} as State));

@@ -8,9 +8,9 @@ interface ModalContext extends ModalRootProps {
     value: StateManager<State>
 }
 
-export const modalWithState = (Component: React.FC<ModalRootProps>) => {
-    return ({ value, ...props }: ModalContext) =>
+export const modalWithState = <T extends ModalRootProps>(Component: React.FC<T>) => {
+    return ({ value, ...props }: T & ModalContext) =>
         <GlobalContext.Provider value={value}>
-            <Component {...props} />
+            <Component {...props as T} />
         </GlobalContext.Provider>;
 }

@@ -14,8 +14,11 @@ import { Position, ViewMode } from "./util";
 import { useGlobalState } from "./globalState";
 import { UrlModalWithState } from "./urlModal";
 
+const addAddressAction = "__add_address__";
+const removeCurrentAddressAction = "__remove_current_address__";
+
 export const Settings = () => {
-    const [{ viewMode, position, margin, url, size }, setGlobalState, stateContext] = useGlobalState();
+    const [{ viewMode, position, customPosition, margin, url, urlEntries, size }, setGlobalState, stateContext] = useGlobalState();
 
     useEffect(() => {
         setGlobalState(state => ({
@@ -38,6 +41,26 @@ export const Settings = () => {
         { label: 'Left', data: Position.Left },
     ];
 
+    const currentUrlEntry = urlEntries.find(entry => entry.url === url);
+    const urlOptions = [
+        {
+            label: '+ Add Address',
+            data: addAddressAction
+        },
+        ...urlEntries.map(entry => ({
+            label: entry.note.length > 0
+                ? `${entry.note}: ${entry.url}`
+                : entry.url,
+            data: entry.id
+        })),
+        ...(currentUrlEntry && urlEntries.length > 1
+            ? [{
+                label: 'Remove Current Address',
+                data: removeCurrentAddressAction
+            }]
+            : [])
+    ];
+
     return <>
         <PanelSection>
             {viewMode == ViewMode.Closed && <>
@@ -58,15 +81,55 @@ export const Settings = () => {
                     <ButtonItem
                         label='Address'
                         layout="below"
-                        onClick={() => showModal(<UrlModalWithState value={stateContext} />)}>
+                        onClick={() => showModal(<UrlModalWithState value={stateContext} mode="edit" />)}>
                         <div style={{ display: 'flex' }}>
                             <FaEdit />
                             &nbsp;&nbsp;
                             <div style={{ maxWidth: 180, textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                {url}
+                                {currentUrlEntry?.note.length
+                                    ? currentUrlEntry.note
+                                    : url}
                             </div>
                         </div>
                     </ButtonItem>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <DropdownItem
+                        label='Saved Address'
+                        selectedOption={currentUrlEntry?.id ?? url}
+                        rgOptions={urlOptions}
+                        onChange={option => {
+                            if (option.data === addAddressAction) {
+                                showModal(<UrlModalWithState value={stateContext} mode="add" />);
+                                return;
+                            }
+
+                            if (option.data === removeCurrentAddressAction && currentUrlEntry) {
+                                setGlobalState(state => {
+                                    const nextEntries = state.urlEntries.filter(entry => entry.id !== currentUrlEntry.id);
+                                    const nextUrl = nextEntries[0]?.url ?? state.url;
+
+                                    return {
+                                        ...state,
+                                        visible: true,
+                                        url: nextUrl,
+                                        urlEntries: nextEntries
+                                    };
+                                });
+                                return;
+                            }
+
+                            const entry = urlEntries.find(({ id }) => id === option.data);
+                            if (!entry) {
+                                return;
+                            }
+
+                            setGlobalState(state => ({
+                                ...state,
+                                visible: true,
+                                url: entry.url
+                            }));
+                        }} />
                 </PanelSectionRow>
                 <PanelSectionRow>
                     <ToggleField
@@ -98,9 +161,25 @@ export const Settings = () => {
                                 ...state,
                                 visible: true,
                                 position: option.data,
+                                customPosition: null,
                                 viewMode: ViewMode.Picture
                             }))} />
                 </PanelSectionRow>
+                {customPosition && <>
+                    <PanelSectionRow>
+                        <ButtonItem
+                            bottomSeparator="none"
+                            layout="below"
+                            onClick={() => setGlobalState(state => ({
+                                ...state,
+                                customPosition: null,
+                                visible: true,
+                                viewMode: ViewMode.Picture
+                            }))}>
+                            Reset Dragged Position
+                        </ButtonItem>
+                    </PanelSectionRow>
+                </>}
                 <PanelSectionRow>
                     <SliderField
                         label='Size'
@@ -112,16 +191,9 @@ export const Settings = () => {
                                 visible: true,
                                 viewMode: ViewMode.Picture
                             }))}
-                        min={0.70}
-                        max={1.30}
-                        step={0.15}
-                        notchCount={3}
-                        notchTicksVisible={true}
-                        notchLabels={[
-                            { label: "S", notchIndex: 0, value: 0.70 },
-                            { label: "M", notchIndex: 1, value: 1 },
-                            { label: "L", notchIndex: 2, value: 1.30 }
-                        ]} />
+                        min={0.50}
+                        max={1.60}
+                        step={0.01} />
                 </PanelSectionRow>
                 <PanelSectionRow>
                     <SliderField
