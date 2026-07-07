@@ -177,10 +177,16 @@ const getPictureBounds = (
     return clampToArea(bounds, area);
 };
 
-const PipDragBar = ({ bounds, dragArea }: { bounds: Bounds, dragArea: Bounds }) => {
+interface PipDragBarProps {
+    bounds: Bounds
+    dragArea: Bounds
+    menuOpen: boolean
+    setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps) => {
     const [{ url, urlEntries, viewMode }, setGlobalState] = useGlobalState();
     const dragStart = useRef<DragStart | null>(null);
-    const [menuOpen, setMenuOpen] = useState(false);
 
     const resize = (ratio: number) => {
         setGlobalState(state => ({
@@ -198,22 +204,6 @@ const PipDragBar = ({ bounds, dragArea }: { bounds: Bounds, dragArea: Bounds }) 
     const stopMenuPointer = (event: React.PointerEvent<HTMLDivElement>) => {
         event.stopPropagation();
     };
-
-    useEffect(() => {
-        if (!menuOpen) {
-            return;
-        }
-
-        setGlobalState(state => ({
-            ...state,
-            visible: false,
-        }));
-
-        return () => setGlobalState(state => ({
-            ...state,
-            visible: true,
-        }));
-    }, [menuOpen]);
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0) {
@@ -469,6 +459,7 @@ const useDeckComponentBounds = () => {
 export const Pip = () => {
     const { nav, qam, virtualKeyboard } = useDeckComponentBounds();
     const [{ viewMode, position, customPosition, size, dragBarVisible, url, visible }] = useGlobalState();
+    const [menuOpen, setMenuOpen] = useState(false);
 
     const pictureWidth = PICTURE_WIDTH * size;
     const pictureHeight = PICTURE_HEIGHT * size;
@@ -541,9 +532,13 @@ export const Pip = () => {
     return <>
         <Browser
             url={url}
-            visible={visible}
+            visible={visible && !menuOpen}
             {...browserBounds} />
-        {visible && viewMode == ViewMode.Picture && dragBarVisible && <PipDragBar bounds={bounds} dragArea={dragArea} />}
+        {visible && viewMode == ViewMode.Picture && dragBarVisible && <PipDragBar
+            bounds={bounds}
+            dragArea={dragArea}
+            menuOpen={menuOpen}
+            setMenuOpen={setMenuOpen} />}
     </>;
 }
 
