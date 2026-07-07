@@ -11,7 +11,7 @@ cross-module responsibilities.
 `decky-pip` is a Decky Loader plugin that opens a Steam/Deck browser view as a
 picture-in-picture overlay while the user is in game mode. The plugin exposes a
 Quick Access Menu settings panel for changing the URL, view mode, picture
-position, picture size, margin, and saved URL list.
+size, drag bar visibility, and saved URL list.
 
 The project is intentionally small. Most behavior is client-side TypeScript and
 React running inside the Decky frontend environment.
@@ -74,8 +74,8 @@ Quick Access Menu controls. Responsibilities:
 
 - Opens the PiP view when the settings panel mounts if it was closed.
 - Provides URL edit/save, saved URL selector, saved URL add/remove actions,
-  expand toggle, position selector, continuous size slider, margin slider, and
-  close button.
+  expand toggle, drag bar visibility toggle, continuous size slider, and close
+  button.
 - Temporarily hides the BrowserView around some Decky modal/dropdown
   interactions so the overlay does not obscure Decky UI.
 
@@ -95,6 +95,12 @@ Core PiP runtime. Responsibilities:
 - Releases the BrowserView on React unmount.
 - Renders a fixed-position drag bar at the top of the PiP bounds in picture
   mode. Touch/pointer drag on the bar updates `customPosition` in shared state.
+  The two left-aligned drag bar buttons decrease/increase picture size by 10%.
+  The right-aligned menu button opens quick actions for switching saved URLs,
+  expanding the window, and closing the PiP. Opening the menu temporarily hides
+  the BrowserView so the native browser surface does not cover the menu.
+  When the drag bar is hidden, the BrowserView uses the full PiP bounds and no
+  drag bar controls are rendered.
 - Tracks Deck UI surfaces, including main navigation, QAM, and an estimated
   virtual keyboard area.
 - Intersects available rectangles and computes final overlay bounds for
@@ -153,8 +159,8 @@ interface State {
   position: Position;
   customPosition: CustomPosition | null;
   visible: boolean;
-  margin: number;
   size: number;
+  dragBarVisible: boolean;
   url: string;
   urlEntries: UrlEntry[];
 }
@@ -177,15 +183,15 @@ Default state is created in `src/index.tsx`:
 - `visible`: `true`
 - `position`: `Position.TopRight`
 - `customPosition`: `null`
-- `margin`: `30`
 - `size`: `1`
+- `dragBarVisible`: `true`
 - `url`: `https://netflix.com`
 - `urlEntries`: contains the current/default URL when older persisted data does
   not already include a list
 
-`position`, `customPosition`, `margin`, `size`, `url`, and `urlEntries` are
-persisted to `localStorage["pip"]`. `viewMode` and `visible` are runtime state
-and should remain non-persistent unless the product behavior intentionally
+`position`, `customPosition`, `size`, `dragBarVisible`, `url`, and `urlEntries`
+are persisted to `localStorage["pip"]`. `viewMode` and `visible` are runtime
+state and should remain non-persistent unless the product behavior intentionally
 changes.
 
 `urlEntries` is the saved URL list. The current URL is still stored separately
@@ -200,17 +206,17 @@ available area when Deck UI surfaces are visible:
 - Quick Access Menu visible: remove the QAM width from the right side.
 - Virtual keyboard visible: reserve an estimated 240px at the bottom.
 
-The available rectangles are intersected. Margins are then applied. In picture
-mode, the configured `Position` determines where the PiP rectangle is placed
-inside the remaining bounds. When `customPosition` is set, it overrides the
-preset `Position` and is clamped into the remaining bounds. Dragging the PiP in
-picture mode updates `customPosition`. Selecting a preset position clears
-`customPosition`.
+The available rectangles are intersected. In picture mode, the configured
+`Position` only determines the initial PiP placement when no custom drag
+position exists. When `customPosition` is set, it overrides the preset
+`Position` and is clamped into the remaining bounds. Dragging the PiP in
+picture mode updates `customPosition`.
 
 In expand mode, the overlay uses the available area after a fixed 30px margin.
 The drag bar is only rendered in picture mode while the BrowserView is visible.
 The BrowserView starts below the drag bar in picture mode, so page gestures
-outside the bar continue to reach the loaded site.
+outside the bar continue to reach the loaded site. If `dragBarVisible` is
+false, the BrowserView uses the full PiP bounds.
 
 ## External Integration Points
 

@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useGlobalState } from "./globalState";
 import { intersectRectangles } from "./geometry";
 import { UIComposition, useUIComposition } from "./useUIComposition";
-import { PICTURE_HEIGHT, PICTURE_WIDTH, Position, SCREEN_HEIGHT, SCREEN_WIDTH, ViewMode } from "./util";
+import { PICTURE_HEIGHT, PICTURE_MAX_SIZE, PICTURE_MIN_SIZE, PICTURE_WIDTH, Position, SCREEN_HEIGHT, SCREEN_WIDTH, ViewMode } from "./util";
 
 interface BrowserProps {
     url: string
@@ -113,7 +113,7 @@ interface DragStart {
     boundsY: number
 }
 
-const dragBarHeight = 28;
+const dragBarHeight = 14;
 
 const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), Math.max(min, max));
@@ -178,8 +178,42 @@ const getPictureBounds = (
 };
 
 const PipDragBar = ({ bounds, dragArea }: { bounds: Bounds, dragArea: Bounds }) => {
-    const [, setGlobalState] = useGlobalState();
+    const [{ url, urlEntries, viewMode }, setGlobalState] = useGlobalState();
     const dragStart = useRef<DragStart | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    const resize = (ratio: number) => {
+        setGlobalState(state => ({
+            ...state,
+            visible: true,
+            viewMode: ViewMode.Picture,
+            size: clamp(Number((state.size * ratio).toFixed(2)), PICTURE_MIN_SIZE, PICTURE_MAX_SIZE),
+        }));
+    };
+
+    const stopButtonPointer = (event: React.PointerEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+    };
+
+    const stopMenuPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+        event.stopPropagation();
+    };
+
+    useEffect(() => {
+        if (!menuOpen) {
+            return;
+        }
+
+        setGlobalState(state => ({
+            ...state,
+            visible: false,
+        }));
+
+        return () => setGlobalState(state => ({
+            ...state,
+            visible: true,
+        }));
+    }, [menuOpen]);
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0) {
@@ -238,25 +272,179 @@ const PipDragBar = ({ bounds, dragArea }: { bounds: Bounds, dragArea: Bounds }) 
         dragStart.current = null;
     };
 
-    return <div
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-        style={{
-            position: 'fixed',
-            left: bounds.x,
-            top: bounds.y,
-            width: bounds.width,
-            height: Math.min(dragBarHeight, bounds.height),
-            zIndex: 2147483647,
-            touchAction: 'none',
-            cursor: 'move',
-            background: 'rgba(0, 0, 0, 0.42)',
-            borderTopLeftRadius: 4,
-            borderTopRightRadius: 4,
-            boxSizing: 'border-box',
-        }} />;
+    const buttonStyle: React.CSSProperties = {
+        width: 28,
+        height: dragBarHeight,
+        border: 0,
+        padding: 0,
+        color: '#fff',
+        background: 'rgba(255, 255, 255, 0.16)',
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: `${dragBarHeight}px`,
+        cursor: 'pointer',
+        touchAction: 'none',
+    };
+
+    const menuWidth = Math.min(240, Math.max(180, bounds.width));
+    const menuButtonStyle: React.CSSProperties = {
+        ...buttonStyle,
+        marginLeft: 'auto',
+    };
+    const menuItemStyle: React.CSSProperties = {
+        display: 'block',
+        width: '100%',
+        border: 0,
+        padding: '8px 10px',
+        color: '#fff',
+        background: 'transparent',
+        textAlign: 'left',
+        fontSize: 13,
+        lineHeight: '16px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    };
+
+    return <>
+        <div
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
+            style={{
+                position: 'fixed',
+                left: bounds.x,
+                top: bounds.y,
+                width: bounds.width,
+                height: Math.min(dragBarHeight, bounds.height),
+                zIndex: 2147483647,
+                touchAction: 'none',
+                cursor: 'move',
+                background: 'rgba(0, 0, 0, 0.42)',
+                borderTopLeftRadius: 4,
+                borderTopRightRadius: 4,
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                overflow: 'hidden',
+            }} />
+        <button
+            aria-label="Decrease picture size"
+            onPointerDown={stopButtonPointer}
+            onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                resize(0.90);
+            }}
+            style={{
+                ...buttonStyle,
+                position: 'fixed',
+                left: bounds.x,
+                top: bounds.y,
+                zIndex: 2147483648,
+            }}>
+            -
+        </button>
+        <button
+            aria-label="Increase picture size"
+            onPointerDown={stopButtonPointer}
+            onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                resize(1.10);
+            }}
+            style={{
+                ...buttonStyle,
+                position: 'fixed',
+                left: bounds.x + 28,
+                top: bounds.y,
+                zIndex: 2147483648,
+            }}>
+            +
+        </button>
+        <button
+            aria-label="Open picture menu"
+            onPointerDown={stopButtonPointer}
+            onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                setMenuOpen(open => !open);
+            }}
+            style={{
+                ...menuButtonStyle,
+                position: 'fixed',
+                left: bounds.x + bounds.width - 28,
+                top: bounds.y,
+                zIndex: 2147483648,
+            }}>
+            ...
+        </button>
+        {menuOpen && <div
+            onPointerDown={stopMenuPointer}
+            style={{
+                position: 'fixed',
+                left: Math.max(bounds.x, bounds.x + bounds.width - menuWidth),
+                top: bounds.y + dragBarHeight,
+                width: menuWidth,
+                maxHeight: 260,
+                overflowY: 'auto',
+                zIndex: 2147483648,
+                background: 'rgba(20, 20, 24, 0.96)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                boxShadow: '0 8px 18px rgba(0, 0, 0, 0.38)',
+                boxSizing: 'border-box',
+            }}>
+            <button
+                onClick={() => {
+                    setGlobalState(state => ({
+                        ...state,
+                        viewMode: viewMode == ViewMode.Expand
+                            ? ViewMode.Picture
+                            : ViewMode.Expand
+                    }));
+                    setMenuOpen(false);
+                }}
+                style={menuItemStyle}>
+                {viewMode == ViewMode.Expand ? 'Picture Mode' : 'Expand'}
+            </button>
+            <button
+                onClick={() => {
+                    setGlobalState(state => ({
+                        ...state,
+                        viewMode: ViewMode.Closed
+                    }));
+                    setMenuOpen(false);
+                }}
+                style={menuItemStyle}>
+                Close Window
+            </button>
+            {urlEntries.length > 0 && <div
+                style={{
+                    height: 1,
+                    background: 'rgba(255, 255, 255, 0.16)',
+                    margin: '4px 0',
+                }} />}
+            {urlEntries.map(entry => <button
+                key={entry.id}
+                onClick={() => {
+                    setGlobalState(state => ({
+                        ...state,
+                        visible: true,
+                        url: entry.url
+                    }));
+                    setMenuOpen(false);
+                }}
+                style={{
+                    ...menuItemStyle,
+                    background: entry.url === url
+                        ? 'rgba(255, 255, 255, 0.16)'
+                        : 'transparent',
+                }}>
+                {entry.note.length > 0 ? entry.note : entry.url}
+            </button>)}
+        </div>}
+    </>;
 };
 
 const useDeckComponentBounds = () => {
@@ -280,7 +468,7 @@ const useDeckComponentBounds = () => {
 
 export const Pip = () => {
     const { nav, qam, virtualKeyboard } = useDeckComponentBounds();
-    const [{ viewMode, position, customPosition, size, url, visible, ...settings }] = useGlobalState();
+    const [{ viewMode, position, customPosition, size, dragBarVisible, url, visible }] = useGlobalState();
 
     const pictureWidth = PICTURE_WIDTH * size;
     const pictureHeight = PICTURE_HEIGHT * size;
@@ -328,7 +516,7 @@ export const Pip = () => {
 
     const margin = viewMode == ViewMode.Expand
         ? 30
-        : settings.margin;
+        : 0;
 
     const dragArea = insetBounds(available, margin);
     const bounds = viewMode == ViewMode.Picture
@@ -341,7 +529,7 @@ export const Pip = () => {
             }, dragArea)
             : getPictureBounds(dragArea, position, pictureWidth, pictureHeight)
         : dragArea;
-    const browserBounds = viewMode == ViewMode.Picture
+    const browserBounds = viewMode == ViewMode.Picture && dragBarVisible
         ? {
             x: bounds.x,
             y: bounds.y + dragBarHeight,
@@ -355,7 +543,7 @@ export const Pip = () => {
             url={url}
             visible={visible}
             {...browserBounds} />
-        {visible && viewMode == ViewMode.Picture && <PipDragBar bounds={bounds} dragArea={dragArea} />}
+        {visible && viewMode == ViewMode.Picture && dragBarVisible && <PipDragBar bounds={bounds} dragArea={dragArea} />}
     </>;
 }
 

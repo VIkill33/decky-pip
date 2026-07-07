@@ -5,7 +5,7 @@ import { definePlugin, routerHook, } from "@decky/api";
 
 import { PipOuter } from "./pip";
 import { Settings } from "./settings";
-import { Position, ViewMode } from "./util";
+import { PICTURE_MAX_SIZE, PICTURE_MIN_SIZE, Position, ViewMode } from "./util";
 import { CustomPosition, State, GlobalContext, UrlEntry } from "./globalState";
 
 const defaultUrl = "https://netflix.com";
@@ -22,6 +22,9 @@ const isCustomPosition = (value: unknown): value is CustomPosition => {
     const position = value as CustomPosition;
     return typeof position?.x === "number" && typeof position?.y === "number";
 };
+
+const clamp = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
 
 const normalizeUrlEntries = (entries: unknown, currentUrl: string): UrlEntry[] => {
     const normalized = Array.isArray(entries)
@@ -70,14 +73,18 @@ export default definePlugin(() => {
         customPosition: isCustomPosition(persistedState.customPosition)
             ? persistedState.customPosition
             : null,
-        margin: persistedState.margin ?? 30,
-        size: persistedState.size ?? 1,
+        size: typeof persistedState.size === "number"
+            ? clamp(persistedState.size, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
+            : 1,
+        dragBarVisible: typeof persistedState.dragBarVisible === "boolean"
+            ? persistedState.dragBarVisible
+            : true,
         url,
         urlEntries: normalizeUrlEntries(persistedState.urlEntries, url),
     });
 
-    state.watch(({ position, customPosition, margin, size, url, urlEntries }) =>
-        localStorage.setItem('pip', JSON.stringify({ position, customPosition, margin, size, url, urlEntries })));
+    state.watch(({ position, customPosition, size, dragBarVisible, url, urlEntries }) =>
+        localStorage.setItem('pip', JSON.stringify({ position, customPosition, size, dragBarVisible, url, urlEntries })));
 
     routerHook.addGlobalComponent("PictureInPicture", () => {
         return <GlobalContext.Provider value={state}>

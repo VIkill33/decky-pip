@@ -20,8 +20,8 @@ export interface State {
     position: Position
     customPosition: CustomPosition | null
     visible: boolean
-    margin: number
     size: number
+    dragBarVisible: boolean
     url: string
     urlEntries: UrlEntry[]
 }

@@ -10,7 +10,7 @@ import {
 import { useEffect } from "react";
 import { FaEdit } from "react-icons/fa";
 
-import { Position, ViewMode } from "./util";
+import { PICTURE_MAX_SIZE, PICTURE_MIN_SIZE, ViewMode } from "./util";
 import { useGlobalState } from "./globalState";
 import { UrlModalWithState } from "./urlModal";
 
@@ -18,7 +18,7 @@ const addAddressAction = "__add_address__";
 const removeCurrentAddressAction = "__remove_current_address__";
 
 export const Settings = () => {
-    const [{ viewMode, position, customPosition, margin, url, urlEntries, size }, setGlobalState, stateContext] = useGlobalState();
+    const [{ viewMode, dragBarVisible, url, urlEntries, size }, setGlobalState, stateContext] = useGlobalState();
 
     useEffect(() => {
         setGlobalState(state => ({
@@ -29,17 +29,6 @@ export const Settings = () => {
                 : state.viewMode
         }));
     }, []);
-
-    const positionOptions = [
-        { label: 'Top Left', data: Position.TopLeft },
-        { label: 'Top', data: Position.Top },
-        { label: 'Top Right', data: Position.TopRight },
-        { label: 'Right', data: Position.Right },
-        { label: 'Bottom Right', data: Position.BottomRight },
-        { label: 'Bottom', data: Position.Bottom },
-        { label: 'Bottom Left', data: Position.BottomLeft },
-        { label: 'Left', data: Position.Left },
-    ];
 
     const currentUrlEntry = urlEntries.find(entry => entry.url === url);
     const urlOptions = [
@@ -147,39 +136,18 @@ export const Settings = () => {
             </>}
             {viewMode == ViewMode.Picture && <>
                 <PanelSectionRow>
-                    <DropdownItem
-                        label='View'
-                        selectedOption={position}
-                        rgOptions={positionOptions}
-                        onMenuOpened={() =>
+                    <ToggleField
+                        label='Drag Bar'
+                        checked={dragBarVisible}
+                        onChange={dragBarVisible => {
                             setGlobalState(state => ({
                                 ...state,
-                                visible: false
-                            }))}
-                        onChange={option =>
-                            setGlobalState(state => ({
-                                ...state,
+                                dragBarVisible,
                                 visible: true,
-                                position: option.data,
-                                customPosition: null,
                                 viewMode: ViewMode.Picture
-                            }))} />
+                            }))
+                        }} />
                 </PanelSectionRow>
-                {customPosition && <>
-                    <PanelSectionRow>
-                        <ButtonItem
-                            bottomSeparator="none"
-                            layout="below"
-                            onClick={() => setGlobalState(state => ({
-                                ...state,
-                                customPosition: null,
-                                visible: true,
-                                viewMode: ViewMode.Picture
-                            }))}>
-                            Reset Dragged Position
-                        </ButtonItem>
-                    </PanelSectionRow>
-                </>}
                 <PanelSectionRow>
                     <SliderField
                         label='Size'
@@ -191,31 +159,9 @@ export const Settings = () => {
                                 visible: true,
                                 viewMode: ViewMode.Picture
                             }))}
-                        min={0.50}
-                        max={1.60}
+                        min={PICTURE_MIN_SIZE}
+                        max={PICTURE_MAX_SIZE}
                         step={0.01} />
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <SliderField
-                        label='Margin'
-                        value={margin}
-                        onChange={margin =>
-                            setGlobalState(state => ({
-                                ...state,
-                                margin,
-                                visible: true,
-                                viewMode: ViewMode.Picture
-                            }))}
-                        min={0}
-                        max={60}
-                        step={15}
-                        notchCount={3}
-                        notchTicksVisible={true}
-                        notchLabels={[
-                            { label: "S", notchIndex: 0, value: 0 },
-                            { label: "M", notchIndex: 1, value: 30 },
-                            { label: "L", notchIndex: 2, value: 60 },
-                        ]} />
                 </PanelSectionRow>
             </>}
             {viewMode != ViewMode.Closed && <>
