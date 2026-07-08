@@ -76,6 +76,12 @@ export default definePlugin(() => {
         size: typeof persistedState.size === "number"
             ? clamp(persistedState.size, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
             : 1,
+        widthScale: typeof persistedState.widthScale === "number"
+            ? clamp(persistedState.widthScale, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
+            : 1,
+        heightScale: typeof persistedState.heightScale === "number"
+            ? clamp(persistedState.heightScale, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
+            : 1,
         dragBarVisible: typeof persistedState.dragBarVisible === "boolean"
             ? persistedState.dragBarVisible
             : true,
@@ -83,8 +89,8 @@ export default definePlugin(() => {
         urlEntries: normalizeUrlEntries(persistedState.urlEntries, url),
     });
 
-    state.watch(({ position, customPosition, size, dragBarVisible, url, urlEntries }) =>
-        localStorage.setItem('pip', JSON.stringify({ position, customPosition, size, dragBarVisible, url, urlEntries })));
+    state.watch(({ position, customPosition, size, widthScale, heightScale, dragBarVisible, url, urlEntries }) =>
+        localStorage.setItem('pip', JSON.stringify({ position, customPosition, size, widthScale, heightScale, dragBarVisible, url, urlEntries })));
 
     routerHook.addGlobalComponent("PictureInPicture", () => {
         return <GlobalContext.Provider value={state}>

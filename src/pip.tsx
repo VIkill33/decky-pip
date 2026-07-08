@@ -113,7 +113,19 @@ interface DragStart {
     boundsY: number
 }
 
+interface ResizeStart {
+    pointerId: number
+    pointerX: number
+    pointerY: number
+    size: number
+    widthScale: number
+    heightScale: number
+}
+
+type ResizeMode = "width" | "height" | "uniform";
+
 const dragBarHeight = 14;
+const resizeEdgeHandleSize = 18;
 
 const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), Math.max(min, max));
@@ -182,20 +194,21 @@ interface PipDragBarProps {
     dragArea: Bounds
     menuOpen: boolean
     setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
+    resizeHandlesVisible: boolean
+    setResizeHandlesVisible: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps) => {
-    const [{ url, urlEntries, viewMode }, setGlobalState] = useGlobalState();
+const PipDragBar = ({
+    bounds,
+    dragArea,
+    menuOpen,
+    setMenuOpen,
+    resizeHandlesVisible,
+    setResizeHandlesVisible
+}: PipDragBarProps) => {
+    const [{ url, urlEntries, viewMode, size, widthScale, heightScale }, setGlobalState] = useGlobalState();
     const dragStart = useRef<DragStart | null>(null);
-
-    const resize = (ratio: number) => {
-        setGlobalState(state => ({
-            ...state,
-            visible: true,
-            viewMode: ViewMode.Picture,
-            size: clamp(Number((state.size * ratio).toFixed(2)), PICTURE_MIN_SIZE, PICTURE_MAX_SIZE),
-        }));
-    };
+    const resizeStart = useRef<ResizeStart | null>(null);
 
     const stopButtonPointer = (event: React.PointerEvent<HTMLButtonElement>) => {
         event.stopPropagation();
@@ -262,6 +275,93 @@ const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps
         dragStart.current = null;
     };
 
+    const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        resizeStart.current = {
+            pointerId: event.pointerId,
+            pointerX: event.clientX,
+            pointerY: event.clientY,
+            size,
+            widthScale,
+            heightScale,
+        };
+
+        setGlobalState(state => ({
+            ...state,
+            visible: true,
+            viewMode: ViewMode.Picture,
+            customPosition: {
+                x: bounds.x,
+                y: bounds.y,
+            },
+        }));
+    };
+
+    const handleResizePointerMove = (mode: ResizeMode) => (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!resizeStart.current || resizeStart.current.pointerId !== event.pointerId) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const deltaX = event.clientX - resizeStart.current.pointerX;
+        const deltaY = event.clientY - resizeStart.current.pointerY;
+        const uniformDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+
+        setGlobalState(state => ({
+            ...state,
+            visible: true,
+            viewMode: ViewMode.Picture,
+            customPosition: {
+                x: bounds.x,
+                y: bounds.y,
+            },
+            size: mode == "uniform"
+                ? Number(clamp(
+                    resizeStart.current!.size + uniformDelta / PICTURE_WIDTH,
+                    PICTURE_MIN_SIZE,
+                    PICTURE_MAX_SIZE
+                ).toFixed(2))
+                : state.size,
+            widthScale: mode == "width"
+                ? Number(clamp(
+                    resizeStart.current!.widthScale + deltaX / (PICTURE_WIDTH * resizeStart.current!.size),
+                    PICTURE_MIN_SIZE,
+                    PICTURE_MAX_SIZE
+                ).toFixed(2))
+                : state.widthScale,
+            heightScale: mode == "height"
+                ? Number(clamp(
+                    resizeStart.current!.heightScale + deltaY / (PICTURE_HEIGHT * resizeStart.current!.size),
+                    PICTURE_MIN_SIZE,
+                    PICTURE_MAX_SIZE
+                ).toFixed(2))
+                : state.heightScale,
+        }));
+    };
+
+    const handleResizePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!resizeStart.current || resizeStart.current.pointerId !== event.pointerId) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+
+        resizeStart.current = null;
+    };
+
     const buttonStyle: React.CSSProperties = {
         width: 28,
         height: dragBarHeight,
@@ -275,6 +375,7 @@ const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps
         cursor: 'pointer',
         touchAction: 'none',
     };
+    const resizeToggleWidth = 28;
 
     const menuWidth = Math.min(240, Math.max(180, bounds.width));
     const menuButtonStyle: React.CSSProperties = {
@@ -320,38 +421,23 @@ const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps
                 overflow: 'hidden',
             }} />
         <button
-            aria-label="Decrease picture size"
+            aria-label="Show resize handles"
             onPointerDown={stopButtonPointer}
             onClick={event => {
                 event.preventDefault();
                 event.stopPropagation();
-                resize(0.90);
+                setMenuOpen(false);
+                setResizeHandlesVisible(visible => !visible);
             }}
             style={{
                 ...buttonStyle,
+                width: resizeToggleWidth,
                 position: 'fixed',
                 left: bounds.x,
                 top: bounds.y,
                 zIndex: 2147483648,
             }}>
-            -
-        </button>
-        <button
-            aria-label="Increase picture size"
-            onPointerDown={stopButtonPointer}
-            onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                resize(1.10);
-            }}
-            style={{
-                ...buttonStyle,
-                position: 'fixed',
-                left: bounds.x + 28,
-                top: bounds.y,
-                zIndex: 2147483648,
-            }}>
-            +
+            []
         </button>
         <button
             aria-label="Open picture menu"
@@ -370,6 +456,63 @@ const PipDragBar = ({ bounds, dragArea, menuOpen, setMenuOpen }: PipDragBarProps
             }}>
             ...
         </button>
+        {resizeHandlesVisible && <>
+            <div
+                aria-label="Resize picture width"
+                onPointerDown={handleResizePointerDown}
+                onPointerMove={handleResizePointerMove("width")}
+                onPointerUp={handleResizePointerEnd}
+                onPointerCancel={handleResizePointerEnd}
+                style={{
+                    position: 'fixed',
+                    left: bounds.x + bounds.width - resizeEdgeHandleSize,
+                    top: bounds.y + dragBarHeight,
+                    width: resizeEdgeHandleSize,
+                    height: Math.max(0, bounds.height - dragBarHeight - resizeEdgeHandleSize),
+                    zIndex: 2147483648,
+                    cursor: 'ew-resize',
+                    touchAction: 'none',
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    boxSizing: 'border-box',
+                }} />
+            <div
+                aria-label="Resize picture height"
+                onPointerDown={handleResizePointerDown}
+                onPointerMove={handleResizePointerMove("height")}
+                onPointerUp={handleResizePointerEnd}
+                onPointerCancel={handleResizePointerEnd}
+                style={{
+                    position: 'fixed',
+                    left: bounds.x,
+                    top: bounds.y + bounds.height - resizeEdgeHandleSize,
+                    width: Math.max(0, bounds.width - resizeEdgeHandleSize),
+                    height: resizeEdgeHandleSize,
+                    zIndex: 2147483648,
+                    cursor: 'ns-resize',
+                    touchAction: 'none',
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    boxSizing: 'border-box',
+                }} />
+            <div
+                aria-label="Resize picture uniformly"
+                onPointerDown={handleResizePointerDown}
+                onPointerMove={handleResizePointerMove("uniform")}
+                onPointerUp={handleResizePointerEnd}
+                onPointerCancel={handleResizePointerEnd}
+                style={{
+                    position: 'fixed',
+                    left: bounds.x + bounds.width - resizeEdgeHandleSize,
+                    top: bounds.y + bounds.height - resizeEdgeHandleSize,
+                    width: resizeEdgeHandleSize,
+                    height: resizeEdgeHandleSize,
+                    zIndex: 2147483649,
+                    cursor: 'nwse-resize',
+                    touchAction: 'none',
+                    background: 'rgba(255, 255, 255, 0.30)',
+                    borderTopLeftRadius: 3,
+                    boxSizing: 'border-box',
+                }} />
+        </>}
         {menuOpen && <div
             onPointerDown={stopMenuPointer}
             style={{
@@ -458,11 +601,12 @@ const useDeckComponentBounds = () => {
 
 export const Pip = () => {
     const { nav, qam, virtualKeyboard } = useDeckComponentBounds();
-    const [{ viewMode, position, customPosition, size, dragBarVisible, url, visible }] = useGlobalState();
+    const [{ viewMode, position, customPosition, size, widthScale, heightScale, dragBarVisible, url, visible }] = useGlobalState();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [resizeHandlesVisible, setResizeHandlesVisible] = useState(false);
 
-    const pictureWidth = PICTURE_WIDTH * size;
-    const pictureHeight = PICTURE_HEIGHT * size;
+    const pictureWidth = PICTURE_WIDTH * size * widthScale;
+    const pictureHeight = PICTURE_HEIGHT * size * heightScale;
 
     const availableBounds = [{
         x: 0,
@@ -524,8 +668,8 @@ export const Pip = () => {
         ? {
             x: bounds.x,
             y: bounds.y + dragBarHeight,
-            width: bounds.width,
-            height: Math.max(0, bounds.height - dragBarHeight)
+            width: Math.max(0, bounds.width - (resizeHandlesVisible ? resizeEdgeHandleSize : 0)),
+            height: Math.max(0, bounds.height - dragBarHeight - (resizeHandlesVisible ? resizeEdgeHandleSize : 0))
         }
         : bounds;
 
@@ -538,7 +682,9 @@ export const Pip = () => {
             bounds={bounds}
             dragArea={dragArea}
             menuOpen={menuOpen}
-            setMenuOpen={setMenuOpen} />}
+            setMenuOpen={setMenuOpen}
+            resizeHandlesVisible={resizeHandlesVisible}
+            setResizeHandlesVisible={setResizeHandlesVisible} />}
     </>;
 }
 

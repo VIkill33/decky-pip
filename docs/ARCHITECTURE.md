@@ -95,10 +95,13 @@ Core PiP runtime. Responsibilities:
 - Releases the BrowserView on React unmount.
 - Renders a fixed-position drag bar at the top of the PiP bounds in picture
   mode. Touch/pointer drag on the bar updates `customPosition` in shared state.
-  The two left-aligned drag bar buttons decrease/increase picture size by 10%.
+  The left-aligned resize toggle shows/hides three resize handles: right edge
+  for width, bottom edge for height, and bottom-right corner for uniform size.
   The right-aligned menu button opens quick actions for switching saved URLs,
   expanding the window, and closing the PiP. Opening the menu temporarily hides
   the BrowserView so the native browser surface does not cover the menu.
+  When resize handles are visible, the BrowserView is inset from the right and
+  bottom edges so the native browser surface does not cover the handles.
   When the drag bar is hidden, the BrowserView uses the full PiP bounds and no
   drag bar controls are rendered.
 - Tracks Deck UI surfaces, including main navigation, QAM, and an estimated
@@ -160,6 +163,8 @@ interface State {
   customPosition: CustomPosition | null;
   visible: boolean;
   size: number;
+  widthScale: number;
+  heightScale: number;
   dragBarVisible: boolean;
   url: string;
   urlEntries: UrlEntry[];
@@ -184,15 +189,17 @@ Default state is created in `src/index.tsx`:
 - `position`: `Position.TopRight`
 - `customPosition`: `null`
 - `size`: `1`
+- `widthScale`: `1`
+- `heightScale`: `1`
 - `dragBarVisible`: `true`
 - `url`: `https://netflix.com`
 - `urlEntries`: contains the current/default URL when older persisted data does
   not already include a list
 
-`position`, `customPosition`, `size`, `dragBarVisible`, `url`, and `urlEntries`
-are persisted to `localStorage["pip"]`. `viewMode` and `visible` are runtime
-state and should remain non-persistent unless the product behavior intentionally
-changes.
+`position`, `customPosition`, `size`, `widthScale`, `heightScale`,
+`dragBarVisible`, `url`, and `urlEntries` are persisted to
+`localStorage["pip"]`. `viewMode` and `visible` are runtime state and should
+remain non-persistent unless the product behavior intentionally changes.
 
 `urlEntries` is the saved URL list. The current URL is still stored separately
 as `url` for fast lookup and backward compatibility with older stored data.

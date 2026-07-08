@@ -12,3 +12,4 @@ If an architecture-level change updates responsibilities, data flow,
 persistence behavior, or integration assumptions, update
 `docs/ARCHITECTURE.md` in the same change.
 
+After every feature change, build a new debug zip file for testing.

@@ -21,6 +21,8 @@ export interface State {
     customPosition: CustomPosition | null
     visible: boolean
     size: number
+    widthScale: number
+    heightScale: number
     dragBarVisible: boolean
     url: string
     urlEntries: UrlEntry[]
