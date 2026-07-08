@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useGlobalState } from "./globalState";
 import { intersectRectangles } from "./geometry";
 import { UIComposition, useUIComposition } from "./useUIComposition";
-import { PICTURE_HEIGHT, PICTURE_MAX_SIZE, PICTURE_MIN_SIZE, PICTURE_WIDTH, Position, SCREEN_HEIGHT, SCREEN_WIDTH, ViewMode } from "./util";
+import { PICTURE_HEIGHT, PICTURE_MAX_HEIGHT_SCALE, PICTURE_MAX_SIZE, PICTURE_MAX_WIDTH_SCALE, PICTURE_MIN_SIZE, PICTURE_WIDTH, Position, SCREEN_HEIGHT, SCREEN_WIDTH, ViewMode } from "./util";
 
 interface BrowserProps {
     url: string
@@ -143,6 +143,19 @@ const clampToArea = (bounds: Bounds, area: Bounds): Bounds => ({
     y: clamp(bounds.y, area.y, area.y + area.height - bounds.height),
 });
 
+const getMaxWidthScale = (area: Bounds, size: number) =>
+    Math.max(PICTURE_MIN_SIZE, Math.min(PICTURE_MAX_WIDTH_SCALE, area.width / (PICTURE_WIDTH * size)));
+
+const getMaxHeightScale = (area: Bounds, size: number) =>
+    Math.max(PICTURE_MIN_SIZE, Math.min(PICTURE_MAX_HEIGHT_SCALE, area.height / (PICTURE_HEIGHT * size)));
+
+const getMaxUniformSize = (area: Bounds, widthScale: number, heightScale: number) =>
+    Math.max(PICTURE_MIN_SIZE, Math.min(
+        PICTURE_MAX_SIZE,
+        area.width / (PICTURE_WIDTH * widthScale),
+        area.height / (PICTURE_HEIGHT * heightScale)
+    ));
+
 const getPictureBounds = (
     area: Bounds,
     position: Position,
@@ -206,7 +219,7 @@ const PipDragBar = ({
     resizeHandlesVisible,
     setResizeHandlesVisible
 }: PipDragBarProps) => {
-    const [{ url, urlEntries, viewMode, size, widthScale, heightScale }, setGlobalState] = useGlobalState();
+    const [{ url, urlEntries, viewMode, visible, size, widthScale, heightScale }, setGlobalState] = useGlobalState();
     const dragStart = useRef<DragStart | null>(null);
     const resizeStart = useRef<ResizeStart | null>(null);
 
@@ -327,21 +340,21 @@ const PipDragBar = ({
                 ? Number(clamp(
                     resizeStart.current!.size + uniformDelta / PICTURE_WIDTH,
                     PICTURE_MIN_SIZE,
-                    PICTURE_MAX_SIZE
+                    getMaxUniformSize(dragArea, resizeStart.current!.widthScale, resizeStart.current!.heightScale)
                 ).toFixed(2))
                 : state.size,
             widthScale: mode == "width"
                 ? Number(clamp(
                     resizeStart.current!.widthScale + deltaX / (PICTURE_WIDTH * resizeStart.current!.size),
                     PICTURE_MIN_SIZE,
-                    PICTURE_MAX_SIZE
+                    getMaxWidthScale(dragArea, resizeStart.current!.size)
                 ).toFixed(2))
                 : state.widthScale,
             heightScale: mode == "height"
                 ? Number(clamp(
                     resizeStart.current!.heightScale + deltaY / (PICTURE_HEIGHT * resizeStart.current!.size),
                     PICTURE_MIN_SIZE,
-                    PICTURE_MAX_SIZE
+                    getMaxHeightScale(dragArea, resizeStart.current!.size)
                 ).toFixed(2))
                 : state.heightScale,
         }));
@@ -532,6 +545,16 @@ const PipDragBar = ({
                 onClick={() => {
                     setGlobalState(state => ({
                         ...state,
+                        visible: !state.visible
+                    }));
+                }}
+                style={menuItemStyle}>
+                {visible ? 'Hide Window' : 'Show Window'}
+            </button>
+            <button
+                onClick={() => {
+                    setGlobalState(state => ({
+                        ...state,
                         viewMode: viewMode == ViewMode.Expand
                             ? ViewMode.Picture
                             : ViewMode.Expand
@@ -605,9 +628,6 @@ export const Pip = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [resizeHandlesVisible, setResizeHandlesVisible] = useState(false);
 
-    const pictureWidth = PICTURE_WIDTH * size * widthScale;
-    const pictureHeight = PICTURE_HEIGHT * size * heightScale;
-
     const availableBounds = [{
         x: 0,
         y: 0,
@@ -654,6 +674,11 @@ export const Pip = () => {
         : 0;
 
     const dragArea = insetBounds(available, margin);
+    const effectiveSize = clamp(size, PICTURE_MIN_SIZE, getMaxUniformSize(dragArea, widthScale, heightScale));
+    const effectiveWidthScale = clamp(widthScale, PICTURE_MIN_SIZE, getMaxWidthScale(dragArea, effectiveSize));
+    const effectiveHeightScale = clamp(heightScale, PICTURE_MIN_SIZE, getMaxHeightScale(dragArea, effectiveSize));
+    const pictureWidth = PICTURE_WIDTH * effectiveSize * effectiveWidthScale;
+    const pictureHeight = PICTURE_HEIGHT * effectiveSize * effectiveHeightScale;
     const bounds = viewMode == ViewMode.Picture
         ? customPosition
             ? clampToArea({
@@ -678,7 +703,7 @@ export const Pip = () => {
             url={url}
             visible={visible && !menuOpen}
             {...browserBounds} />
-        {visible && viewMode == ViewMode.Picture && dragBarVisible && <PipDragBar
+        {(visible || menuOpen) && viewMode == ViewMode.Picture && dragBarVisible && <PipDragBar
             bounds={bounds}
             dragArea={dragArea}
             menuOpen={menuOpen}

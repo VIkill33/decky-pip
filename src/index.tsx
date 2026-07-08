@@ -5,7 +5,7 @@ import { definePlugin, routerHook, } from "@decky/api";
 
 import { PipOuter } from "./pip";
 import { Settings } from "./settings";
-import { PICTURE_MAX_SIZE, PICTURE_MIN_SIZE, Position, ViewMode } from "./util";
+import { PICTURE_MAX_HEIGHT_SCALE, PICTURE_MAX_SIZE, PICTURE_MAX_WIDTH_SCALE, PICTURE_MIN_SIZE, Position, ViewMode } from "./util";
 import { CustomPosition, State, GlobalContext, UrlEntry } from "./globalState";
 
 const defaultUrl = "https://netflix.com";
@@ -77,10 +77,10 @@ export default definePlugin(() => {
             ? clamp(persistedState.size, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
             : 1,
         widthScale: typeof persistedState.widthScale === "number"
-            ? clamp(persistedState.widthScale, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
+            ? clamp(persistedState.widthScale, PICTURE_MIN_SIZE, PICTURE_MAX_WIDTH_SCALE)
             : 1,
         heightScale: typeof persistedState.heightScale === "number"
-            ? clamp(persistedState.heightScale, PICTURE_MIN_SIZE, PICTURE_MAX_SIZE)
+            ? clamp(persistedState.heightScale, PICTURE_MIN_SIZE, PICTURE_MAX_HEIGHT_SCALE)
             : 1,
         dragBarVisible: typeof persistedState.dragBarVisible === "boolean"
             ? persistedState.dragBarVisible

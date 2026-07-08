@@ -11,7 +11,7 @@ cross-module responsibilities.
 `decky-pip` is a Decky Loader plugin that opens a Steam/Deck browser view as a
 picture-in-picture overlay while the user is in game mode. The plugin exposes a
 Quick Access Menu settings panel for changing the URL, view mode, picture
-size, drag bar visibility, and saved URL list.
+size, BrowserView visibility, drag bar visibility, and saved URL list.
 
 The project is intentionally small. Most behavior is client-side TypeScript and
 React running inside the Decky frontend environment.
@@ -74,8 +74,8 @@ Quick Access Menu controls. Responsibilities:
 
 - Opens the PiP view when the settings panel mounts if it was closed.
 - Provides URL edit/save, saved URL selector, saved URL add/remove actions,
-  expand toggle, drag bar visibility toggle, continuous size slider, and close
-  button.
+  BrowserView show/hide toggle, expand toggle, drag bar visibility toggle,
+  continuous size slider, and close button.
 - Temporarily hides the BrowserView around some Decky modal/dropdown
   interactions so the overlay does not obscure Decky UI.
 
@@ -97,9 +97,10 @@ Core PiP runtime. Responsibilities:
   mode. Touch/pointer drag on the bar updates `customPosition` in shared state.
   The left-aligned resize toggle shows/hides three resize handles: right edge
   for width, bottom edge for height, and bottom-right corner for uniform size.
-  The right-aligned menu button opens quick actions for switching saved URLs,
-  expanding the window, and closing the PiP. Opening the menu temporarily hides
-  the BrowserView so the native browser surface does not cover the menu.
+  The right-aligned menu button opens quick actions for showing/hiding the
+  BrowserView, switching saved URLs, expanding the window, and closing the PiP.
+  Opening the menu temporarily hides the BrowserView so the native browser
+  surface does not cover the menu.
   When resize handles are visible, the BrowserView is inset from the right and
   bottom edges so the native browser surface does not cover the handles.
   When the drag bar is hidden, the BrowserView uses the full PiP bounds and no
@@ -200,6 +201,8 @@ Default state is created in `src/index.tsx`:
 `dragBarVisible`, `url`, and `urlEntries` are persisted to
 `localStorage["pip"]`. `viewMode` and `visible` are runtime state and should
 remain non-persistent unless the product behavior intentionally changes.
+`visible` controls whether the BrowserView is shown without destroying it, so
+restoring visibility does not reload the current page.
 
 `urlEntries` is the saved URL list. The current URL is still stored separately
 as `url` for fast lookup and backward compatibility with older stored data.
@@ -220,10 +223,15 @@ position exists. When `customPosition` is set, it overrides the preset
 picture mode updates `customPosition`.
 
 In expand mode, the overlay uses the available area after a fixed 30px margin.
-The drag bar is only rendered in picture mode while the BrowserView is visible.
-The BrowserView starts below the drag bar in picture mode, so page gestures
-outside the bar continue to reach the loaded site. If `dragBarVisible` is
-false, the BrowserView uses the full PiP bounds.
+The drag bar is rendered in picture mode when the BrowserView is visible, and
+it can remain rendered while its menu is open so the menu can restore a hidden
+BrowserView. The BrowserView starts below the drag bar in picture mode, so page
+gestures outside the bar continue to reach the loaded site. If
+`dragBarVisible` is false, the BrowserView uses the full PiP bounds.
+
+Independent width and height resize handles clamp against the current available
+area, not only the general uniform size limit. This lets the bottom height
+handle grow until the current Deck UI avoidance bounds are reached.
 
 ## External Integration Points
 

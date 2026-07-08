@@ -18,16 +18,16 @@ const addAddressAction = "__add_address__";
 const removeCurrentAddressAction = "__remove_current_address__";
 
 export const Settings = () => {
-    const [{ viewMode, dragBarVisible, url, urlEntries, size }, setGlobalState, stateContext] = useGlobalState();
+    const [{ viewMode, dragBarVisible, url, urlEntries, size, visible }, setGlobalState, stateContext] = useGlobalState();
 
     useEffect(() => {
-        setGlobalState(state => ({
-            ...state,
-            visible: true,
-            viewMode: state.viewMode == ViewMode.Closed
-                ? ViewMode.Picture
-                : state.viewMode
-        }));
+        setGlobalState(state => state.viewMode == ViewMode.Closed
+            ? {
+                ...state,
+                visible: true,
+                viewMode: ViewMode.Picture
+            }
+            : state);
     }, []);
 
     const currentUrlEntry = urlEntries.find(entry => entry.url === url);
@@ -59,6 +59,7 @@ export const Settings = () => {
                         layout="below"
                         onClick={() => setGlobalState(state => ({
                             ...state,
+                            visible: true,
                             viewMode: ViewMode.Picture
                         }))}>
                         Open
@@ -100,7 +101,6 @@ export const Settings = () => {
 
                                     return {
                                         ...state,
-                                        visible: true,
                                         url: nextUrl,
                                         urlEntries: nextEntries
                                     };
@@ -115,9 +115,19 @@ export const Settings = () => {
 
                             setGlobalState(state => ({
                                 ...state,
-                                visible: true,
                                 url: entry.url
                             }));
+                        }} />
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <ToggleField
+                        label='Show Window'
+                        checked={visible}
+                        onChange={visible => {
+                            setGlobalState(state => ({
+                                ...state,
+                                visible
+                            }))
                         }} />
                 </PanelSectionRow>
                 <PanelSectionRow>
@@ -143,7 +153,6 @@ export const Settings = () => {
                             setGlobalState(state => ({
                                 ...state,
                                 dragBarVisible,
-                                visible: true,
                                 viewMode: ViewMode.Picture
                             }))
                         }} />
@@ -156,7 +165,6 @@ export const Settings = () => {
                             setGlobalState(state => ({
                                 ...state,
                                 size,
-                                visible: true,
                                 viewMode: ViewMode.Picture
                             }))}
                         min={PICTURE_MIN_SIZE}

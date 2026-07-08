@@ -3,7 +3,7 @@ import {
     ConfirmModal,
     ModalRootProps
 } from "@decky/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { modalWithState } from "./modal";
 import { useGlobalState } from "./globalState";
@@ -16,7 +16,8 @@ interface UrlModalProps extends ModalRootProps {
 }
 
 export const UrlModal = ({ mode = "edit", ...props }: UrlModalProps) => {
-    const [{ url, urlEntries }, setGlobalState] = useGlobalState();
+    const [{ url, urlEntries, visible }, setGlobalState] = useGlobalState();
+    const previousVisible = useRef(visible);
     const currentEntry = mode == "edit"
         ? urlEntries.find(entry => entry.url === url)
         : null;
@@ -31,7 +32,7 @@ export const UrlModal = ({ mode = "edit", ...props }: UrlModalProps) => {
 
         return () => setGlobalState(state => ({
             ...state,
-            visible: true
+            visible: previousVisible.current
         }));
     }, [])
 
@@ -45,14 +46,14 @@ export const UrlModal = ({ mode = "edit", ...props }: UrlModalProps) => {
             if (nextUrl.length === 0) {
                 setGlobalState(state => ({
                     ...state,
-                    visible: true
+                    visible: previousVisible.current
                 }));
                 return;
             }
 
             setGlobalState(state => ({
                 ...state,
-                visible: true,
+                visible: previousVisible.current,
                 url: nextUrl,
                 urlEntries: state.urlEntries.some(entry => entry.url === nextUrl)
                     ? state.urlEntries.map(entry => entry.url === nextUrl
@@ -74,7 +75,7 @@ export const UrlModal = ({ mode = "edit", ...props }: UrlModalProps) => {
         onCancel={() => {
             setGlobalState(state => ({
                 ...state,
-                visible: true
+                visible: previousVisible.current
             }))
         }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
