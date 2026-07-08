@@ -122,7 +122,13 @@ interface ResizeStart {
     heightScale: number
 }
 
-type ResizeMode = "width" | "height" | "uniform";
+interface ResizeValues {
+    size: number
+    widthScale: number
+    heightScale: number
+}
+
+type ResizeMode = "width" | "height" | "freeform";
 
 const dragBarHeight = 14;
 const resizeEdgeHandleSize = 18;
@@ -155,6 +161,52 @@ const getMaxUniformSize = (area: Bounds, widthScale: number, heightScale: number
         area.width / (PICTURE_WIDTH * widthScale),
         area.height / (PICTURE_HEIGHT * heightScale)
     ));
+
+const getFreeformResizeValues = (
+    area: Bounds,
+    start: ResizeStart,
+    deltaX: number,
+    deltaY: number
+): ResizeValues => {
+    const minWidthFactor = PICTURE_MIN_SIZE * PICTURE_MIN_SIZE;
+    const minHeightFactor = PICTURE_MIN_SIZE * PICTURE_MIN_SIZE;
+    const maxWidthFactor = area.width / PICTURE_WIDTH;
+    const maxHeightFactor = area.height / PICTURE_HEIGHT;
+    const widthFactor = clamp(
+        start.size * start.widthScale + deltaX / PICTURE_WIDTH,
+        minWidthFactor,
+        maxWidthFactor
+    );
+    const heightFactor = clamp(
+        start.size * start.heightScale + deltaY / PICTURE_HEIGHT,
+        minHeightFactor,
+        maxHeightFactor
+    );
+    const maxSize = Math.max(PICTURE_MIN_SIZE, Math.min(
+        PICTURE_MAX_SIZE,
+        widthFactor / PICTURE_MIN_SIZE,
+        heightFactor / PICTURE_MIN_SIZE
+    ));
+    const size = Number(clamp(
+        Math.min(widthFactor, heightFactor),
+        PICTURE_MIN_SIZE,
+        maxSize
+    ).toFixed(2));
+
+    return {
+        size,
+        widthScale: Number(clamp(
+            widthFactor / size,
+            PICTURE_MIN_SIZE,
+            getMaxWidthScale(area, size)
+        ).toFixed(2)),
+        heightScale: Number(clamp(
+            heightFactor / size,
+            PICTURE_MIN_SIZE,
+            getMaxHeightScale(area, size)
+        ).toFixed(2)),
+    };
+};
 
 const getPictureBounds = (
     area: Bounds,
@@ -326,7 +378,9 @@ const PipDragBar = ({
 
         const deltaX = event.clientX - resizeStart.current.pointerX;
         const deltaY = event.clientY - resizeStart.current.pointerY;
-        const uniformDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+        const freeformValues = mode == "freeform"
+            ? getFreeformResizeValues(dragArea, resizeStart.current, deltaX, deltaY)
+            : null;
 
         setGlobalState(state => ({
             ...state,
@@ -336,12 +390,8 @@ const PipDragBar = ({
                 x: bounds.x,
                 y: bounds.y,
             },
-            size: mode == "uniform"
-                ? Number(clamp(
-                    resizeStart.current!.size + uniformDelta / PICTURE_WIDTH,
-                    PICTURE_MIN_SIZE,
-                    getMaxUniformSize(dragArea, resizeStart.current!.widthScale, resizeStart.current!.heightScale)
-                ).toFixed(2))
+            size: freeformValues
+                ? freeformValues.size
                 : state.size,
             widthScale: mode == "width"
                 ? Number(clamp(
@@ -349,6 +399,8 @@ const PipDragBar = ({
                     PICTURE_MIN_SIZE,
                     getMaxWidthScale(dragArea, resizeStart.current!.size)
                 ).toFixed(2))
+                : freeformValues
+                    ? freeformValues.widthScale
                 : state.widthScale,
             heightScale: mode == "height"
                 ? Number(clamp(
@@ -356,6 +408,8 @@ const PipDragBar = ({
                     PICTURE_MIN_SIZE,
                     getMaxHeightScale(dragArea, resizeStart.current!.size)
                 ).toFixed(2))
+                : freeformValues
+                    ? freeformValues.heightScale
                 : state.heightScale,
         }));
     };
@@ -507,9 +561,9 @@ const PipDragBar = ({
                     boxSizing: 'border-box',
                 }} />
             <div
-                aria-label="Resize picture uniformly"
+                aria-label="Resize picture freely"
                 onPointerDown={handleResizePointerDown}
-                onPointerMove={handleResizePointerMove("uniform")}
+                onPointerMove={handleResizePointerMove("freeform")}
                 onPointerUp={handleResizePointerEnd}
                 onPointerCancel={handleResizePointerEnd}
                 style={{
@@ -543,10 +597,17 @@ const PipDragBar = ({
             }}>
             <button
                 onClick={() => {
+                    const nextVisible = !visible;
+
                     setGlobalState(state => ({
                         ...state,
-                        visible: !state.visible
+                        visible: nextVisible
                     }));
+
+                    if (!nextVisible) {
+                        setMenuOpen(false);
+                        setResizeHandlesVisible(false);
+                    }
                 }}
                 style={menuItemStyle}>
                 {visible ? 'Hide Window' : 'Show Window'}
@@ -627,6 +688,7 @@ export const Pip = () => {
     const [{ viewMode, position, customPosition, size, widthScale, heightScale, dragBarVisible, url, visible }] = useGlobalState();
     const [menuOpen, setMenuOpen] = useState(false);
     const [resizeHandlesVisible, setResizeHandlesVisible] = useState(false);
+    const lastPictureBounds = useRef<Bounds | null>(null);
 
     const availableBounds = [{
         x: 0,
@@ -673,22 +735,43 @@ export const Pip = () => {
         ? 30
         : 0;
 
-    const dragArea = insetBounds(available, margin);
+    const pictureArea = {
+        x: 0,
+        y: 0,
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT
+    };
+    const dragArea = viewMode == ViewMode.Picture
+        ? pictureArea
+        : insetBounds(available, margin);
     const effectiveSize = clamp(size, PICTURE_MIN_SIZE, getMaxUniformSize(dragArea, widthScale, heightScale));
     const effectiveWidthScale = clamp(widthScale, PICTURE_MIN_SIZE, getMaxWidthScale(dragArea, effectiveSize));
     const effectiveHeightScale = clamp(heightScale, PICTURE_MIN_SIZE, getMaxHeightScale(dragArea, effectiveSize));
     const pictureWidth = PICTURE_WIDTH * effectiveSize * effectiveWidthScale;
     const pictureHeight = PICTURE_HEIGHT * effectiveSize * effectiveHeightScale;
-    const bounds = viewMode == ViewMode.Picture
-        ? customPosition
+    const pictureBounds = customPosition
+        ? clampToArea({
+            x: customPosition.x,
+            y: customPosition.y,
+            width: pictureWidth,
+            height: pictureHeight,
+        }, dragArea)
+        : lastPictureBounds.current
             ? clampToArea({
-                x: customPosition.x,
-                y: customPosition.y,
+                ...lastPictureBounds.current,
                 width: pictureWidth,
                 height: pictureHeight,
             }, dragArea)
-            : getPictureBounds(dragArea, position, pictureWidth, pictureHeight)
+            : getPictureBounds(dragArea, position, pictureWidth, pictureHeight);
+    const bounds = viewMode == ViewMode.Picture
+        ? pictureBounds
         : dragArea;
+
+    useEffect(() => {
+        if (viewMode == ViewMode.Picture) {
+            lastPictureBounds.current = bounds;
+        }
+    }, [viewMode, bounds.x, bounds.y, bounds.width, bounds.height]);
     const browserBounds = viewMode == ViewMode.Picture && dragBarVisible
         ? {
             x: bounds.x,

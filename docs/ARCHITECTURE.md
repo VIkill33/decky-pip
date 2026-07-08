@@ -96,7 +96,8 @@ Core PiP runtime. Responsibilities:
 - Renders a fixed-position drag bar at the top of the PiP bounds in picture
   mode. Touch/pointer drag on the bar updates `customPosition` in shared state.
   The left-aligned resize toggle shows/hides three resize handles: right edge
-  for width, bottom edge for height, and bottom-right corner for uniform size.
+  for width, bottom edge for height, and bottom-right corner for freeform
+  width/height plus overall size.
   The right-aligned menu button opens quick actions for showing/hiding the
   BrowserView, switching saved URLs, expanding the window, and closing the PiP.
   Opening the menu temporarily hides the BrowserView so the native browser
@@ -209,29 +210,37 @@ as `url` for fast lookup and backward compatibility with older stored data.
 
 ## Bounds Calculation
 
-`Pip` starts with the full 854x534 screen from `util.tsx`, then narrows the
-available area when Deck UI surfaces are visible:
+`Pip` starts with the full 854x534 screen from `util.tsx`. Expand mode then
+narrows the available area when Deck UI surfaces are visible:
 
 - Main navigation visible: remove the nav width from the left side.
 - Quick Access Menu visible: remove the QAM width from the right side.
 - Virtual keyboard visible: reserve an estimated 240px at the bottom.
 
-The available rectangles are intersected. In picture mode, the configured
-`Position` only determines the initial PiP placement when no custom drag
-position exists. When `customPosition` is set, it overrides the preset
-`Position` and is clamped into the remaining bounds. Dragging the PiP in
-picture mode updates `customPosition`.
+The available rectangles are intersected for expand mode. Picture mode uses the
+full screen as its drag and resize area so opening or closing QAM/settings does
+not change PiP position or size. In picture mode, the configured `Position`
+only determines the initial PiP placement when no custom drag position or
+remembered runtime bounds exist. Once the PiP has been rendered, runtime bounds
+are reused across Deck UI visibility changes so closing settings or QAM does
+not snap the PiP back to the preset position. When `customPosition` is set, it
+overrides the preset `Position` and is clamped into the remaining bounds.
+Dragging the PiP in picture mode updates `customPosition`.
 
 In expand mode, the overlay uses the available area after a fixed 30px margin.
 The drag bar is rendered in picture mode when the BrowserView is visible, and
-it can remain rendered while its menu is open so the menu can restore a hidden
-BrowserView. The BrowserView starts below the drag bar in picture mode, so page
-gestures outside the bar continue to reach the loaded site. If
-`dragBarVisible` is false, the BrowserView uses the full PiP bounds.
+it can remain rendered while its menu is open. Hiding the BrowserView from the
+menu closes the menu and drag controls immediately; the settings panel can
+restore a hidden BrowserView. The BrowserView starts below the drag bar in
+picture mode, so page gestures outside the bar continue to reach the loaded
+site. If `dragBarVisible` is false, the BrowserView uses the full PiP bounds.
 
 Independent width and height resize handles clamp against the current available
 area, not only the general uniform size limit. This lets the bottom height
-handle grow until the current Deck UI avoidance bounds are reached.
+handle grow until the current Deck UI avoidance bounds are reached. The
+bottom-right freeform handle derives target width and height from pointer
+movement, then decomposes them into the shared `size` value plus independent
+`widthScale` and `heightScale` values.
 
 ## External Integration Points
 
